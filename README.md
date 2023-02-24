@@ -1,7 +1,9 @@
 peace_lock
 ============
 
-A Mutex/RwLock that can only be used when there's no contention (and panics if any!).
+A Mutex/RwLock that will panic if there's contention!
+
+peace_lock helps you sanity check your concurrent algorithm and becomes zero-cost outside the check mode.
 
 ## Motivation
 
