@@ -11,12 +11,13 @@ peace_lock
 
 A Mutex/RwLock that will panic if there's contention!
 
-peace_lock helps you sanity check your concurrent algorithm and becomes zero-cost with the check mode disabled.
+peace_lock helps you sanity check your concurrent algorithm and becomes zero-cost with the check
+mode disabled.
 
 ## Motivation
 
-A lock that expects no contention seems counter-intuitive: the reason to use a lock
-in the first place is to properly manage the contentions, right? Yes and no. 
+A lock that expects no contention seems counter-intuitive: the reason to use a
+lock in the first place is to properly manage the contentions, right? Yes and no. 
 
 Sometimes you implement a contention-free algorithm on your data structure. You 
 think concurrently writing to the data structure is OK, but the compiler is
@@ -82,6 +83,12 @@ This crate is designed for this purpose.
 
 peace_lock is a drop-in replacement for std/parking_lot's `Mutex` and `RwLock`.
 
+Add `peace_lock = { version = "0.1", features = ["check"]}` to your Cargo.toml
+to enable the check mode. In the check mode, calling `write` or `read` will just
+panic in case of contention. This let's you know the scheduling algorithm has a
+bug!
+
+
 ```rust
 use peace_lock::{RwLock, Mutex};
 
@@ -108,11 +115,9 @@ thread::spawn(|| { *shared_map.get(&1).unwrap().lock() = 3; });
 thread::spawn(|| { *shared_map.get(&2).unwrap().lock() = 4; });
 ```
 
-In case of contention, calling `write` or `read` will just panic, which let's 
-you know the scheduling algorithm has a bug!
-
-If you want to squeeze the performance, you can disable the check by 
-`peace_lock = { version = "0.1", default-features = false }`.
+If you want to squeeze the performance, you can disable the check by remove it
+from the feature list: `peace_lock = { version = "0.1", features = [] }`. This 
+will make the lock zero-cost.
 
 ## Help Wanted
 
