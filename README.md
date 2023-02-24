@@ -76,3 +76,12 @@ You can disable the check by
 
 In case of contention, calling `write` or `read` will just panic, which let's 
 you know the scheduling algorithm has a bug!
+
+## Help Wanted
+
+I'm not that proficient in atomics. It will be super helpful if someone can help
+me check if the atomic ordering is used correctly and is not too tight.
+
+## Licence
+
+MIT
