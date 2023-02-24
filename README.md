@@ -1,23 +1,42 @@
 peace_lock
 ============
+[![CI Badge]][CI Page] [![Latest Version]][crates.io] [![docs.rs Badge]][docs.rs]
+
+[CI Badge]: https://img.shields.io/github/actions/workflow/status/dovahcrow/peace-lock/test.yml?style=flat-square
+[CI Page]: https://github.com/dovahcrow/peace-lock/actions/workflows/test.yml
+[Latest Version]: https://img.shields.io/crates/v/peace-lock.svg?style=flat-square
+[crates.io]: https://crates.io/crates/peace-lock
+[docs.rs Badge]: https://img.shields.io/docsrs/peace-lock?style=flat-square
+[docs.rs]: https://docs.rs/peace-lock
 
 A Mutex/RwLock that will panic if there's contention!
 
-peace_lock helps you sanity check your concurrent algorithm and becomes zero-cost outside the check mode.
+peace_lock helps you sanity check your concurrent algorithm and becomes zero-cost with the check mode disabled.
 
 ## Motivation
 
 A lock that expects no contention seems counter-intuitive: the reason to use a lock
-in the first place is that there are contentions, right? Yes and no. 
+in the first place is to properly manage the contentions, right? Yes and no. 
 
-Sometimes you implement a contention-free algorithm on your data structure. You think
-having concurrent write to the data structure is OK, but the compiler is unhappy about it.
-To make it worse, you must ensure the algorithm is free from bugs to be truly contention-free. This makes you choose `RwLock` by unnecessarily sacrificing some performance.
-Later, to make it performant, you end up with a solution using `UnsafeCell` and making unsafe code everywhere.
+Sometimes you implement a contention-free algorithm on your data structure. You 
+think concurrently writing to the data structure is OK, but the compiler is
+unhappy about it.
 
-Let's think about this example:
+For debugging purpose, the program should shout out loudly when any contention
+is detected, which implies bugs. This makes you choose `RwLock` for sanity check
+during the development and unnecessarily sacrifices some performance.
 
-You want to change the content of the values in a hashmap concurrently. 
+Later, you rewrite the algorithm using `UnsafeCell` and
+`unsafe`s to make it performant.
+
+Can we avoid rewriting and unsafe code?
+
+Here is a concrete example:
+
+You want to have a hashmap that allows you change the content of the values
+concurrently. You can do that because you have a scheduling algorithm ensures
+that no two threads can read & write to a same value at the same time.
+
 ```rust
 let map: HashMap<usize, usize> = ...;
 let shared_map = Arc::new(map);
@@ -26,11 +45,11 @@ let shared_map = Arc::new(map);
 thread::spawn(|| { *shared_map.get_mut(&1).unwrap() = 3; });
 thread::spawn(|| { *shared_map.get_mut(&2).unwrap() = 4; });
 ```
-The above code won't work because you cannot get mutable references inside the Arc.
-But "Hey, compiler, this is safe, I guarantee!" because you have invented a scheduling algorithm so that
-different threads will always change the values of different keys.
+The above code won't work because you cannot get mutable references inside the
+`Arc`. But "Hey, compiler, this is safe, I guarantee!" because of your brilliant 
+scheduling algorithm.
 
-To circumvent compiler, you use `RwLock`:
+To ease the compiler, you use `RwLock`:
 ```rust
 let map: HashMap<usize, RwLock<usize>> = ...;
 let shared_map = Arc::new(map);
@@ -39,9 +58,10 @@ let shared_map = Arc::new(map);
 thread::spawn(|| { *shared_map.get(&1).unwrap().write() = 3; });
 thread::spawn(|| { *shared_map.get(&2).unwrap().write() = 4; });
 ```
-But since you know there's no conflict, using `RwLock` harms the performance.
+Since you know there's no conflict, using `RwLock` unnecessarily harms the
+performance.
 
-Now you decide to do some black magic:
+Later you decide to do some black magic for the performance:
 ```rust
 let map: HashMap<usize, UnsafeCell<usize>> = ...;
 let shared_map = Arc::new(map);
@@ -50,40 +70,51 @@ let shared_map = Arc::new(map);
 thread::spawn(|| { unsafe { *shared_map.get(&1).unwrap().get() = 3; } });
 thread::spawn(|| { unsafe { *shared_map.get(&2).unwrap().get() = 4; } });
 ```
-The code is running correctly, until it doesn't.
-Now you wonder: am I implementing the scheduling right? Could there be a 
-contention bug? I really want to use `RwLock` to sanity check but I don't want
-to have the performance hit.
+The code is running correctly, until the scheduler produces a contention.
 
-This crate is coming to save you.
+Now you wonder: I can revert the code to `RwLock` for sanity check but there are
+too much code to rewrite. Are there any simpler way for me to switch between the
+performance mode and the sanity check mode?
 
-## peace_lock
+This crate is designed for this purpose.
+
+## Usage
+
 peace_lock is a drop-in replacement for std/parking_lot's `Mutex` and `RwLock`.
+
 ```rust
-use peace_lock::RwLock;
+use peace_lock::{RwLock, Mutex};
 
 let map: HashMap<usize, RwLock<usize>> = ...;
 let shared_map = Arc::new(map);
 
 // do these two concurrently in different threads
-// The `write` call will panic if there's another thread is writing to the value.
-// The panic behavior can be disabled by feature flags so that `write` becomes
+// The `write` call will panic if there's another thread writing to the value
+// simultaneously.
+// The panic behaviour can be disabled by feature flags so that `write` becomes
 // zero-cost.
 thread::spawn(|| { *shared_map.get(&1).unwrap().write() = 3; });
 thread::spawn(|| { *shared_map.get(&2).unwrap().write() = 4; });
-```
 
-You can disable the check by 
-`peace_lock = { version = "0.1", default-features = false }`.
+// and concurrent read is fine
+thread::spawn(|| { shared_map.get(&2).unwrap().read(); });
+thread::spawn(|| { shared_map.get(&2).unwrap().read(); });
+
+// also mutex
+let map: HashMap<usize, Mutex<usize>> = ...;
+let shared_map = Arc::new(map);
+
+thread::spawn(|| { *shared_map.get(&1).unwrap().lock() = 3; });
+thread::spawn(|| { *shared_map.get(&2).unwrap().lock() = 4; });
+```
 
 In case of contention, calling `write` or `read` will just panic, which let's 
 you know the scheduling algorithm has a bug!
 
+If you want to squeeze the performance, you can disable the check by 
+`peace_lock = { version = "0.1", default-features = false }`.
+
 ## Help Wanted
 
-I'm not that proficient in atomics. It will be super helpful if someone can help
+I'm not that proficient in atomics. It would be super helpful if someone could help
 me check if the atomic ordering is used correctly and is not too tight.
-
-## Licence
-
-MIT

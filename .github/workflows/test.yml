@@ -1,0 +1,27 @@
+name: test
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    container: ubuntu:22.04
+    steps:
+      - uses: actions/checkout@v2
+      
+      - run: |
+          apt-get update
+          apt-get install -y wget gcc
+
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: 1.65.0
+          default: true
+
+      - uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --all-features
