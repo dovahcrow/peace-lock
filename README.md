@@ -119,7 +119,12 @@ If you want to squeeze the performance, you can disable the check by remove it
 from the feature list: `peace_lock = { version = "0.1", features = [] }`. This 
 will make the lock zero-cost.
 
+## Optional Features
+
+* owning_ref: add `StableAddress` implementation to lock guards.
+* serde: add `Serialize` and `Deserialize` to locks.
+
 ## Help Wanted
 
-I'm not that proficient in atomics. It would be super helpful if someone could help
-me check if the atomic ordering is used correctly and is not too tight.
+It would be super helpful if someone could help me check if the atomic ordering
+is used correctly and is not too tight.

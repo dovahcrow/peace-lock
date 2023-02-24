@@ -1,5 +1,7 @@
 #[cfg(feature = "owning_ref")]
 use owning_ref::StableAddress;
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 #[cfg(feature = "check")]
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::{
@@ -47,6 +49,7 @@ where
 
 impl<T> RwLock<T> {
     /// Create a new `RwLock`.
+    #[inline]
     pub const fn new(val: T) -> Self {
         Self {
             value: UnsafeCell::new(val),
@@ -56,6 +59,7 @@ impl<T> RwLock<T> {
     }
 
     /// Consume the `RwLock`, returning the inner value.
+    #[inline]
     pub fn into_inner(self) -> T {
         self.value.into_inner()
     }
@@ -67,12 +71,14 @@ where
 {
     /// Get a mutable reference of the inner value T. This is safe because we
     /// have the mutable reference of the lock.
+    #[inline]
     pub fn get_mut(&mut self) -> &mut T {
         self.value.get_mut()
     }
 
     /// Try write lock the `RwLock`, returns the write guard. Returns None if the
     /// `RwLock` is write locked.
+    #[inline]
     pub fn try_write<'a>(&'a self) -> Option<RwLockWriteGuard<'a, T>> {
         self.lock_exclusive()
             .then(|| RwLockWriteGuard { lock: self })
@@ -84,6 +90,7 @@ where
     ///
     /// If the `RwLock` is already write locked, this will panic if the `check`
     /// feature is turned on.
+    #[inline]
     pub fn write<'a>(&'a self) -> RwLockWriteGuard<'a, T> {
         if !self.lock_exclusive() {
             #[cfg(feature = "check")]
@@ -95,6 +102,7 @@ where
 
     /// Try read lock the `RwLock`, returns the read guard. Returns None if the
     /// `RwLock` is write locked.
+    #[inline]
     pub fn try_read<'a>(&'a self) -> Option<RwLockReadGuard<'a, T>> {
         self.lock_shared().then(|| RwLockReadGuard { lock: self })
     }
@@ -105,6 +113,7 @@ where
     ///
     /// If the `RwLock` is already write locked, this will panic if the check feature
     /// is turned on.
+    #[inline]
     pub fn read<'a>(&'a self) -> RwLockReadGuard<'a, T> {
         if !self.lock_shared() {
             #[cfg(feature = "check")]
@@ -114,6 +123,7 @@ where
         RwLockReadGuard { lock: self }
     }
 
+    #[inline]
     fn lock_exclusive(&self) -> bool {
         #[cfg(feature = "check")]
         {
@@ -126,6 +136,7 @@ where
         true
     }
 
+    #[inline]
     fn unlock_exclusive(&self) -> bool {
         #[cfg(feature = "check")]
         {
@@ -138,6 +149,7 @@ where
         true
     }
 
+    #[inline]
     fn lock_shared(&self) -> bool {
         #[cfg(feature = "check")]
         loop {
@@ -164,6 +176,7 @@ where
         true
     }
 
+    #[inline]
     fn unlock_shared(&self) {
         #[cfg(feature = "check")]
         self.state.fetch_sub(ONE_READER, Ordering::Release);
@@ -182,6 +195,8 @@ where
     T: ?Sized,
 {
     type Target = T;
+
+    #[inline]
     fn deref(&self) -> &T {
         unsafe { &*self.lock.value.get() }
     }
@@ -191,6 +206,7 @@ impl<'a, T> DerefMut for RwLockWriteGuard<'a, T>
 where
     T: ?Sized,
 {
+    #[inline]
     fn deref_mut(&mut self) -> &mut T {
         unsafe { &mut *self.lock.value.get() }
     }
@@ -200,6 +216,7 @@ impl<'a, T> Drop for RwLockWriteGuard<'a, T>
 where
     T: ?Sized,
 {
+    #[inline]
     fn drop(&mut self) {
         self.lock.unlock_exclusive();
     }
@@ -217,6 +234,8 @@ where
     T: ?Sized,
 {
     type Target = T;
+
+    #[inline]
     fn deref(&self) -> &T {
         unsafe { &*self.lock.value.get() }
     }
@@ -226,6 +245,7 @@ impl<'a, T> Drop for RwLockReadGuard<'a, T>
 where
     T: ?Sized,
 {
+    #[inline]
     fn drop(&mut self) {
         self.lock.unlock_shared();
     }
@@ -235,3 +255,29 @@ where
 unsafe impl<'a, T: 'a> StableAddress for RwLockReadGuard<'a, T> where T: ?Sized {}
 #[cfg(feature = "owning_ref")]
 unsafe impl<'a, T: 'a> StableAddress for RwLockWriteGuard<'a, T> where T: ?Sized {}
+
+#[cfg(feature = "serde")]
+impl<T> Serialize for RwLock<T>
+where
+    T: Serialize + ?Sized,
+{
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        self.read().serialize(serializer)
+    }
+}
+
+#[cfg(feature = "serde")]
+impl<'de, T> Deserialize<'de> for RwLock<T>
+where
+    T: Deserialize<'de> + ?Sized,
+{
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        Deserialize::deserialize(deserializer).map(RwLock::new)
+    }
+}
