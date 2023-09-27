@@ -19,7 +19,7 @@ fn lock_unlock_lock() {
 }
 
 #[test]
-#[should_panic]
+#[cfg_attr(any(debug_assertions, feature = "check"), should_panic)]
 fn double_lock() {
     let val = Mutex::new(1);
     thread::scope(|s| {

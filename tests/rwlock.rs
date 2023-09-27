@@ -19,7 +19,7 @@ fn write_lock_unlock_lock() {
 }
 
 #[test]
-#[should_panic]
+#[cfg_attr(any(debug_assertions, feature = "check"), should_panic)]
 fn double_write_lock() {
     let val = RwLock::new(1);
     thread::scope(|s| {
@@ -36,7 +36,7 @@ fn double_write_lock() {
 }
 
 #[test]
-#[should_panic]
+#[cfg_attr(any(debug_assertions, feature = "check"), should_panic)]
 fn read_write_lock_conflict1() {
     let val = RwLock::new(1);
     thread::scope(|s| {
@@ -53,7 +53,7 @@ fn read_write_lock_conflict1() {
 }
 
 #[test]
-#[should_panic]
+#[cfg_attr(any(debug_assertions, feature = "check"), should_panic)]
 fn read_write_lock_conflict2() {
     let val = RwLock::new(1);
     thread::scope(|s| {
