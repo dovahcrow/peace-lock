@@ -83,10 +83,9 @@ This crate is designed for this purpose.
 
 peace_lock is a drop-in replacement for std/parking_lot's `Mutex` and `RwLock`.
 
-Add `peace_lock = { version = "0.1", features = ["check"]}` to your Cargo.toml
-to enable the check mode. In the check mode, calling `write` or `read` will just
-panic in case of contention. This let's you know the scheduling algorithm has a
-bug!
+Add `peace_lock = "0.1"` to your Cargo.toml. In a debug build, the check mode is
+enabled, and calling `write` or `read` will just panic in case of contention.
+This lets you know the scheduling algorithm has a bug!
 
 
 ```rust
@@ -115,9 +114,9 @@ thread::spawn(|| { *shared_map.get(&1).unwrap().lock() = 3; });
 thread::spawn(|| { *shared_map.get(&2).unwrap().lock() = 4; });
 ```
 
-If you want to squeeze the performance, you can disable the check by remove it
-from the feature list: `peace_lock = { version = "0.1", features = [] }`. This 
-will make the lock zero-cost.
+In a release build, the checks are by default omitted. This 
+will make the lock zero-cost. You can explicitly turn on
+the check mode by adding the `check` feature to the feature list (e.g. `peace_lock = { version = "0.1", features = ["check"] }`).
 
 ## Optional Features
 

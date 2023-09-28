@@ -2,7 +2,7 @@
 use owning_ref::StableAddress;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-#[cfg(feature = "check")]
+#[cfg(any(debug_assertions, feature = "check"))]
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::{
     cell::UnsafeCell,
@@ -13,7 +13,7 @@ use std::{
 /// A mutual exclusive lock
 #[derive(Debug)]
 pub struct Mutex<T: ?Sized> {
-    #[cfg(feature = "check")]
+    #[cfg(any(debug_assertions, feature = "check"))]
     state: AtomicBool,
     value: UnsafeCell<T>,
 }
@@ -43,7 +43,7 @@ impl<T> Mutex<T> {
     #[inline]
     pub fn new(val: T) -> Self {
         Self {
-            #[cfg(feature = "check")]
+            #[cfg(any(debug_assertions, feature = "check"))]
             state: AtomicBool::new(false),
             value: UnsafeCell::new(val),
         }
@@ -83,7 +83,7 @@ where
     #[inline]
     pub fn lock<'a>(&'a self) -> MutexGuard<'a, T> {
         if !self.lock_exclusive() {
-            #[cfg(feature = "check")]
+            #[cfg(any(debug_assertions, feature = "check"))]
             panic!("The lock is already write locked")
         }
 
@@ -92,27 +92,27 @@ where
 
     #[inline]
     fn lock_exclusive(&self) -> bool {
-        #[cfg(feature = "check")]
+        #[cfg(any(debug_assertions, feature = "check"))]
         {
             self.state
                 .compare_exchange(false, true, Ordering::Acquire, Ordering::Relaxed)
                 .is_ok()
         }
 
-        #[cfg(not(feature = "check"))]
+        #[cfg(not(any(debug_assertions, feature = "check")))]
         true
     }
 
     #[inline]
     fn unlock_exclusive(&self) -> bool {
-        #[cfg(feature = "check")]
+        #[cfg(any(debug_assertions, feature = "check"))]
         {
             self.state
                 .compare_exchange(true, false, Ordering::Acquire, Ordering::Relaxed)
                 .is_ok()
         }
 
-        #[cfg(not(feature = "check"))]
+        #[cfg(not(any(debug_assertions, feature = "check")))]
         true
     }
 }
